@@ -14,11 +14,15 @@ class ProcessOcrJob implements ShouldQueue
 {
     use Dispatchable, InteractsWithQueue, Queueable, SerializesModels;
 
-    public function __construct(public OcrJob $jobRecord, public string $filePath) {}
+    public $jobRecord;
+    public $filePath;
 
-    /**
-     * Execute the job.
-     */
+    public function __construct(OcrJob $jobRecord, string $filePath)
+    {
+        $this->jobRecord = $jobRecord;
+        $this->filePath = $filePath;
+    }
+
     public function handle(TesseractOcrService $ocr)
     {
         $this->jobRecord->update(['status' => 'processing']);
