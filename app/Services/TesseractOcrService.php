@@ -6,24 +6,49 @@ use Illuminate\Support\Str;
 
 class TesseractOcrService
 {
-    public function process(string $imagePath, string $lang = 'eng'): array
+    protected string $tesseractBin;
+    protected string $resultsPath;
+
+    public function __construct()
     {
-        $outputName = 'ocr_' . Str::random(10);
-        $outputPath = storage_path("app/ocr/results/{$outputName}");
+        $this->tesseractBin = config('ocr.tesseract_bin', 'tesseract');
+        $this->resultsPath = storage_path('app/' . rtrim(config('ocr.results_path', 'ocr/results'), '/'));
 
-        $command = "tesseract " . escapeshellarg($imagePath) . " " . escapeshellarg($outputPath) . " -l " . escapeshellarg($lang) . " 2>&1";
-        exec($command, $output, $status);
+        if (!is_dir($this->resultsPath)) {
+            mkdir($this->resultsPath, 0755, true);
+        }
+    }
 
-        if ($status !== 0) {
-            return ['success' => false, 'error' => implode("\n", $output)];
+    public function process(string $imagePath, ?string $lang = null): array
+    {
+        $lang = $lang ?? config('ocr.default_lang', 'eng');
+
+        $outputName = 'ocr_' . Str::random(12);
+        $outputFull = $this->resultsPath . DIRECTORY_SEPARATOR . $outputName;
+
+        $cmd = escapeshellarg($this->tesseractBin) . ' ' .
+            escapeshellarg($imagePath) . ' ' .
+            escapeshellarg($outputFull) . ' -l ' .
+            escapeshellarg($lang) . ' 2>&1';
+
+        exec($cmd, $outputLines, $status);
+
+        $txtPath = $outputFull . '.txt';
+
+        if (!file_exists($txtPath)) {
+            return [
+                'success' => false,
+                'error' => 'Tesseract finished but output file missing: ' . $txtPath,
+            ];
         }
 
-        $text = file_get_contents($outputPath . '.txt');
+        $text = file_get_contents($txtPath);
+        $output_file = 'ocr/results/' . basename($txtPath);
 
         return [
             'success' => true,
             'text' => $text,
-            'output_file' => $outputPath . '.txt'
+            'output_file' => $output_file,
         ];
     }
 }
