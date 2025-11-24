@@ -3,27 +3,59 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Services\CreditService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use App\Models\OcrJob;
 use App\Jobs\ProcessOcrJob;
+use Exception;
 
 class OcrController extends Controller
 {
+    protected $creditService;
+
+    public function __construct()
+    {
+        $this->creditService = new CreditService();
+    }
+
     public function upload(Request $request)
     {
         $request->validate(['file' => 'required|image|max:5120']);
 
+        $user = $request->user();   
+
+        if (!$this->creditService->hasEnoughCredits($user->id)) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Insufficient credits. Please add more to continue.'
+            ], 402);
+        }
+
+        try {
+            $this->creditService->deductCredits(
+                $user->id,
+                1,
+                'ocr_usage',
+                'OCR extraction request queued'
+            );
+        } catch (Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Failed to deduct credits: ' . $e->getMessage(),
+            ], 500);
+        }
+
         $file = $request->file('file');
         $filename = Str::uuid() . '.' . $file->getClientOriginalExtension();
-
         $realPath = $file->getRealPath();
 
         $file->storeAs('ocr/originals', $filename);
 
         $job = OcrJob::create([
             'uuid' => Str::uuid(),
+            'user_id' => $user->id,
             'filename' => $filename,
             'status' => 'pending'
         ]);
@@ -33,6 +65,7 @@ class OcrController extends Controller
         return response()->json([
             'success' => true,
             'job_uuid' => $job->uuid,
+            'remaining_credits' => $user->fresh()->credits,
             'message' => 'OCR job queued successfully.'
         ]);
     }

@@ -5,19 +5,17 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Model;
 
-class OcrJob extends Model
+class CreditTransaction extends Model
 {
     use HasUuids;
 
-    protected $table = 'ocr_jobs';
+    protected $table = 'credit_transactions';
 
     protected $fillable = [
         'user_id',
-        'filename',
-        'status',
-        'ocr_text',
-        'result_path',
-        'credit_used',
+        'amount',
+        'type',
+        'description',
     ];
 
     public function user()
